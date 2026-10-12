@@ -1,0 +1,95 @@
+# =========================================
+# STEP 26-5-2. Kubernetes ETL ROLLBACK Test
+# =========================================
+#
+# 목적:
+# 1. MSSQL 신규 주문 추출
+# 2. PostgreSQL UPSERT
+# 3. UPSERT 이후 강제 오류 발생
+# 4. PostgreSQL 트랜잭션 ROLLBACK
+# 5. Watermark 유지 여부 확인
+#
+# 실제 데이터베이스를 이용한 장애 테스트
+# 정상적인 테스트 결과는 Job Failed
+
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: dataops-etl-rollback-test
+  namespace: dataops
+
+  labels:
+    project: dataops-pipeline
+    component: rollback-test
+
+spec:
+  # 강제 장애 확인을 위해 자동 재시도하지 않음
+  backoffLimit: 0
+
+  completions: 1
+  parallelism: 1
+
+  template:
+    spec:
+      restartPolicy: Never
+
+      containers:
+        - name: incremental-etl
+
+          # Kubernetes에 등록한 기존 ETL 이미지
+          image: dataops-etl:dev
+          imagePullPolicy: Never
+
+          env:
+            # 핵심: PostgreSQL 적재 직후 강제 오류 발생
+            - name: ETL_FAIL_AFTER_LOAD
+              value: "1"
+
+            # MSSQL 연결 정보
+            - name: MSSQL_AUTH
+              value: "sql"
+
+            - name: MSSQL_HOST
+              value: "host.docker.internal"
+
+            - name: MSSQL_PORT
+              value: "1433"
+
+            - name: MSSQL_DATABASE
+              value: "Dataops_mssql"
+
+            # PostgreSQL 연결 정보
+            - name: PG_HOST
+              value: "host.docker.internal"
+
+            - name: PG_PORT
+              value: "5433"
+
+            - name: PG_DATABASE
+              value: "dataops"
+
+            # 비밀번호는 Kubernetes Secret에서 로드
+            - name: MSSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: dataops-etl-db
+                  key: MSSQL_USER
+
+            - name: MSSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dataops-etl-db
+                  key: MSSQL_PASSWORD
+
+            - name: PG_USER
+              valueFrom:
+                secretKeyRef:
+                  name: dataops-etl-db
+                  key: PG_USER
+
+            - name: PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dataops-etl-db
+                  key: PG_PASSWORD

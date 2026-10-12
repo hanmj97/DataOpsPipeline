@@ -1,0 +1,90 @@
+# ========================================
+# STEP 26-5. Kubernetes Retry & Recovery
+# ========================================
+#
+# 목적:
+# 1. 첫 번째 실행에서 의도적 오류 발생
+# 2. Kubernetes가 컨테이너 자동 재시작
+# 3. 두 번째 실행에서 성공
+# 4. Job 완료 및 Restart 횟수 확인
+#
+# 실제 DB에 접근하지 않는 안전한 테스트
+
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: dataops-retry-recovery
+  namespace: dataops
+
+  labels:
+    project: dataops-pipeline
+    component: retry-lab
+
+spec:
+  # 정상 완료가 필요한 횟수
+  completions: 1
+
+  # 동시에 실행하는 Pod 수
+  parallelism: 1
+
+  # 실패 재시도 한도
+  backoffLimit: 2
+
+  template:
+    spec:
+      # 컨테이너 실패 시 동일 Pod에서 재시작
+      restartPolicy: OnFailure
+
+      containers:
+        - name: retry-test
+
+          image: busybox:1.36.1
+          imagePullPolicy: IfNotPresent
+
+          command:
+            - sh
+            - -c
+
+          args:
+            - |
+              set -eu
+
+              echo "================================="
+              echo "Kubernetes Retry Test Started"
+              echo "================================="
+
+              # 최초 실행인지 확인
+              if [ ! -f /state/failed_once ]; then
+
+                echo "[STEP 1] First execution"
+
+                # 실패 여부를 파일에 기록
+                touch /state/failed_once
+
+                echo "[ERROR] Simulated ETL failure!"
+
+                # 비정상 종료
+                exit 1
+              fi
+
+              # 컨테이너 재시작 후 실행되는 부분
+              echo "[STEP 2] Container restarted"
+
+              echo "[RECOVERY] Previous failure detected"
+
+              echo "[SUCCESS] ETL recovered successfully"
+
+              # 정상 종료
+              exit 0
+
+          volumeMounts:
+            # 실패 여부를 저장할 볼륨 연결
+            - name: retry-state
+              mountPath: /state
+
+      volumes:
+        # Pod가 유지되는 동안 데이터 보존
+        # 컨테이너 재시작 시에도 파일 유지
+        - name: retry-state
+          emptyDir: {}

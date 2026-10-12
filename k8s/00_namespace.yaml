@@ -1,0 +1,9 @@
+# DataOps 프로젝트 전용 Kubernetes Namespace
+apiVersion: v1
+kind: Namespace
+
+metadata:
+  name: dataops
+
+  labels:
+    project: dataops-pipeline

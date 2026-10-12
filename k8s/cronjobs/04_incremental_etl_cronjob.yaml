@@ -1,0 +1,117 @@
+# ========================================
+# STEP 26-4. Kubernetes CronJob
+# ========================================
+#
+# Source : MSSQL (Dataops_mssql)
+# Target : PostgreSQL (dataops)
+#
+# 목적:
+# 1. Python 증분 ETL 자동 실행
+# 2. 중복 CronJob 실행 방지
+# 3. 성공 및 실패 Job 이력 관리
+# 4. Kubernetes Secret 사용
+#
+# 최초에는 suspend: true로 생성하여
+# 수동 테스트 후 자동 실행을 활성화한다.
+
+apiVersion: batch/v1
+kind: CronJob
+
+metadata:
+  name: dataops-incremental-etl-cron
+  namespace: dataops
+
+  labels:
+    project: dataops-pipeline
+    component: incremental-etl
+
+spec:
+  # 5분마다 실행
+  schedule: "*/5 * * * *"
+
+  # 스케줄 해석에 사용할 타임존
+  timeZone: "Asia/Seoul"
+
+  # 동일 CronJob에서 이전 작업이 진행 중이면
+  # 다음 예정 작업을 건너뜀
+  concurrencyPolicy: Forbid
+
+  # 처음에는 자동 실행 중지
+  # 수동 테스트 후 false로 변경
+  suspend: true
+
+  # 성공 Job 최대 3개 보관
+  successfulJobsHistoryLimit: 3
+
+  # 실패 Job 최대 2개 보관
+  failedJobsHistoryLimit: 2
+
+  # CronJob이 생성할 Job 설정
+  jobTemplate:
+    spec:
+      # 첫 실습에서는 재시도 비활성화
+      # 다음 단계에서 재시도 정책 테스트 예정
+      backoffLimit: 0
+
+      template:
+        spec:
+          restartPolicy: Never
+
+          containers:
+            - name: incremental-etl
+
+              # 기존 Kubernetes Job에서 성공한 이미지
+              image: dataops-etl:dev
+              imagePullPolicy: Never
+
+              # Dockerfile의 기본 CMD 실행
+              # python etl/mssql_to_postgres_incremental.py
+
+              env:
+                # MSSQL 연결 환경 변수
+                - name: MSSQL_AUTH
+                  value: "sql"
+
+                - name: MSSQL_HOST
+                  value: "host.docker.internal"
+
+                - name: MSSQL_PORT
+                  value: "1433"
+
+                - name: MSSQL_DATABASE
+                  value: "Dataops_mssql"
+
+                # PostgreSQL 연결 환경 변수
+                - name: PG_HOST
+                  value: "host.docker.internal"
+
+                - name: PG_PORT
+                  value: "5433"
+
+                - name: PG_DATABASE
+                  value: "dataops"
+
+                # Kubernetes Secret에서 계정 정보 로드
+                - name: MSSQL_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: dataops-etl-db
+                      key: MSSQL_USER
+
+                - name: MSSQL_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: dataops-etl-db
+                      key: MSSQL_PASSWORD
+
+                - name: PG_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: dataops-etl-db
+                      key: PG_USER
+
+                - name: PG_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: dataops-etl-db
+                      key: PG_PASSWORD

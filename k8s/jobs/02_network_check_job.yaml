@@ -1,0 +1,63 @@
+# STEP 26-3. Kubernetes DB Network Test
+#
+# 목적:
+# Kubernetes Pod에서 기존 MSSQL과 PostgreSQL에
+# TCP 연결할 수 있는지 확인한다.
+#
+# 비밀번호 및 DB 데이터를 사용하지 않는 연결 테스트
+
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: dataops-network-check
+  namespace: dataops
+
+spec:
+  # 실패한 작업을 자동 재실행하지 않음
+  backoffLimit: 0
+
+  template:
+    spec:
+      restartPolicy: Never
+
+      containers:
+        - name: network-check
+
+          # 소켓 연결 확인을 위한 Python 이미지
+          image: python:3.13-slim-bookworm
+
+          command:
+            - python
+            - -c
+
+          args:
+            - |
+              import socket
+
+              # 연결을 확인할 DB 주소와 포트
+              targets = [
+                  ("MSSQL", "host.docker.internal", 1433),
+                  ("PostgreSQL", "host.docker.internal", 5433),
+              ]
+
+              for name, host, port in targets:
+                  try:
+                      # 최대 4초 동안 TCP 연결 시도
+                      with socket.create_connection(
+                          (host, port),
+                          timeout=4
+                      ):
+                          print(
+                              f"[SUCCESS] {name}: {host}:{port}",
+                              flush=True
+                          )
+
+                  except OSError as error:
+                      print(
+                          f"[FAILED] {name}: "
+                          f"{type(error).__name__}: {error}",
+                          flush=True
+                      )
+
+              print("Network test finished.", flush=True)

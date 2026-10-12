@@ -1,0 +1,92 @@
+# STEP 26-3. Kubernetes Incremental ETL Job
+#
+# Source : MSSQL (Dataops_mssql)
+# Target : PostgreSQL (dataops)
+#
+# 기존 Python 증분 ETL 이미지를 재사용
+# DB 비밀번호는 Kubernetes Secret에서 읽음
+
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: dataops-incremental-etl
+  namespace: dataops
+
+  labels:
+    project: dataops-pipeline
+    component: incremental-etl
+
+spec:
+  completions: 1
+  parallelism: 1
+
+  # 첫 실행의 원인 분석을 위해 자동 재시도 비활성화
+  # 다음 단계에서 재시도 정책을 실습
+  backoffLimit: 0
+
+  template:
+    spec:
+      restartPolicy: Never
+
+      containers:
+        - name: incremental-etl
+
+          # 기존에 생성한 Python ETL 이미지
+          image: dataops-etl:dev
+
+          # 로컬 Kubernetes 이미지 저장소에 있는 이미지 사용
+          # 이미지가 없다면 자동 다운로드하지 않음
+          imagePullPolicy: Never
+
+          # Dockerfile의 기본 CMD 사용
+          # python etl/mssql_to_postgres_incremental.py
+
+          env:
+            # MSSQL 연결
+            - name: MSSQL_AUTH
+              value: "sql"
+
+            - name: MSSQL_HOST
+              value: "host.docker.internal"
+
+            - name: MSSQL_PORT
+              value: "1433"
+
+            - name: MSSQL_DATABASE
+              value: "Dataops_mssql"
+
+            # PostgreSQL 연결
+            - name: PG_HOST
+              value: "host.docker.internal"
+
+            - name: PG_PORT
+              value: "5433"
+
+            - name: PG_DATABASE
+              value: "dataops"
+
+            # Kubernetes Secret에서 DB 계정 로드
+            - name: MSSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: dataops-etl-db
+                  key: MSSQL_USER
+
+            - name: MSSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dataops-etl-db
+                  key: MSSQL_PASSWORD
+
+            - name: PG_USER
+              valueFrom:
+                secretKeyRef:
+                  name: dataops-etl-db
+                  key: PG_USER
+
+            - name: PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dataops-etl-db
+                  key: PG_PASSWORD

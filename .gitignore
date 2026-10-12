@@ -33,3 +33,10 @@ airflow/config/
 
 # 편집기 임시 파일
 *.tmp
+
+# Kubernetes 실제 Secret 파일 및 로컬 비밀 설정
+k8s/**/secrets/
+k8s/**/secret*.yaml
+
+# Docker 이미지 아카이브
+*.tar
