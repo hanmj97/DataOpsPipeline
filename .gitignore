@@ -1,0 +1,35 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+backups/
+logs/
+
+# 환경 변수 및 비밀번호
+.env
+.env.*
+!.env.example
+
+# Python 가상환경 및 캐시
+.venv/
+__pycache__/
+*.pyc
+
+# Docker Compose 설정 백업
+*.bak
+*.backup.yaml
+
+# 실행 로그
+logs/
+*.log
+
+# 데이터베이스 백업
+backups/
+*.dump
+*.bak.sql
+
+# Airflow 로컬 설정
+airflow/config/
+
+# 편집기 임시 파일
+*.tmp

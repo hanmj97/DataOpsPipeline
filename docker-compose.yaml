@@ -1,0 +1,71 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: dataops-postgres
+    restart: unless-stopped
+    # PostgreSQL이 연결될 Docker 네트워크
+    networks:
+      default: {}
+      dataops_airflow_link:
+        aliases:
+          - dataops-postgres
+
+    environment:
+      POSTGRES_USER: dataops
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: dataops
+
+    ports:
+      - "127.0.0.1:5433:5432"
+
+    volumes:
+      - dataops_pgdata:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dataops -d dataops"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  etl:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    image: dataops-etl:dev
+
+    profiles:
+      - etl
+
+    env_file:
+      - .env
+
+    environment:
+      MSSQL_AUTH: sql
+      MSSQL_HOST: host.docker.internal
+      MSSQL_PORT: "1433"
+      MSSQL_DATABASE: Dataops_mssql
+      PG_HOST: postgres
+      PG_PORT: "5432"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    volumes:
+      - ./logs:/app/logs
+
+    restart: "no"
+
+
+
+# 기존에 생성한 외부 Docker 네트워크 재사용
+networks:
+  dataops_airflow_link:
+    external: true
+
+
+volumes:
+  dataops_pgdata:
+    external: true

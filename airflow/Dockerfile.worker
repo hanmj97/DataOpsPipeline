@@ -1,0 +1,27 @@
+# Airflow 3.3.2 공식 이미지 사용
+FROM apache/airflow:3.3.2
+
+# 시스템 패키지 설치를 위해 root 권한 사용
+USER root
+
+# MSSQL ODBC Driver 18 설치
+# 기존 Microsoft 패키지 저장소를 재사용
+# 저장소 중복 등록을 방지하기 위해 dpkg -i 과정 제거
+RUN apt-get update \
+    && ACCEPT_EULA=Y apt-get install -y \
+        --no-install-recommends \
+        msodbcsql18 \
+        unixodbc \
+        libgssapi-krb5-2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Airflow 일반 사용자로 복귀
+USER airflow
+
+# Python ETL 실행에 필요한 라이브러리 설치
+# Airflow 버전은 기존 이미지와 동일하게 유지
+RUN pip install --no-cache-dir \
+    "apache-airflow==3.3.2" \
+    "pyodbc>=5,<6" \
+    "psycopg[binary]>=3.2,<4" \
+    "python-dotenv>=1,<2"
